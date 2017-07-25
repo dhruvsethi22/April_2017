@@ -1,0 +1,107 @@
+<workflow-app name="sample-wf" xmlns="uri:oozie:workflow:0.3">
+    <start to="myfirstshelljob" />
+    <action name="myfirstshelljob">
+        <shell xmlns="uri:oozie:shell-action:0.1">
+            <job-tracker>${jobTracker}</job-tracker>
+            <name-node>${nameNode}</name-node>
+            <configuration>
+                <property>
+                    <name>mapred.compress.map.output</name>
+                    <value>true</value>
+                </property>
+                <property>
+                  <name>mapred.job.queueName</name>
+                  <value>${queueName}</value>
+                </property>
+            </configuration>
+            <exec>${EXEC}</exec>
+            <file>${EXEC}</file>
+            <capture-output/>
+        </shell>
+        <ok to="check-output"/>
+        <error to="fail"/>
+    </action>
+    <decision name="check-output">
+    <switch>
+    <case to="runhiveminiset">
+    ${wf:actionData('myfirstshelljob')['value'] eq 0}
+    </case>
+    <case to= "fail-output">
+    ${wf:actionData('myfirstshelljob')['value'] eq 1}
+    </case>
+    <default to="end"/>
+    </switch>
+    </decision>
+    <action name="runhiveminiset">
+        <hive xmlns="uri:oozie:hive-action:0.2">
+            <job-tracker>${jobTracker}</job-tracker>
+            <name-node>${nameNode}</name-node>
+            <configuration>
+                <property>
+                    <name>mapred.compress.map.output</name>
+                    <value>true</value>
+                </property>
+                <property>
+                  <name>mapred.job.queueName</name>
+                  <value>${queueName}</value>
+                </property>
+            </configuration>
+            <script>${script}</script>
+        </hive>
+        <ok to="appendtomaindataset"/>
+        <error to="failedhiveminisetexecution"/>
+    </action>
+    <action name="appendtomaindataset">
+        <hive xmlns="uri:oozie:hive-action:0.2">
+            <job-tracker>${jobTracker}</job-tracker>
+            <name-node>${nameNode}</name-node>
+            <configuration>
+                <property>
+                    <name>mapred.compress.map.output</name>
+                    <value>true</value>
+                </property>
+                <property>
+                  <name>mapred.job.queueName</name>
+                  <value>${queueName}</value>
+                </property>
+            </configuration>
+            <script>${script1}</script>
+        </hive>
+        <ok to="hdfscommand"/>
+        <error to="failedtoappend"/>
+    </action>
+    <action name="hdfscommand">
+        <fs xmlns="uri:oozie:workflow:0.4">
+            <name-node>${nameNode}</name-node>
+            <configuration>
+                <property>
+                    <name>mapred.compress.map.output</name>
+                    <value>true</value>
+                </property>
+                <property>
+                  <name>mapred.job.queueName</name>
+                  <value>${queueName}</value>
+                </property>
+            </configuration>
+            <move source='/user/admin/Landing_dir/Accident_Subset/accident_subset.csv' target= '/user/admin/Processed_dir/Accident_Subset'/>
+        </fs>
+        <ok to="end"/>
+        <error to="failtomovethefile"/>
+    </action>
+    <kill name='failedtoappend'>
+        <message>Appending to master set failed: ${wf:actionData('appendtomaindataset')}</message>
+    </kill>
+    <kill name='failtomovethefile'>
+        <message>Failed to move the file: ${wf:actionData('hdfscommand')}</message>
+    </kill>
+    <kill name='failedhiveminisetexecution'>
+        <message>Hive mini set query failed: ${wf:actionData('runhiveminiset')}</message>
+    </kill>
+    <kill name='fail'>
+        <message>Shell Action Failed: ${wf:actionData('myfirstshelljob')['value']}</message>
+    </kill>
+    <kill name='fail-output'>
+      <message>Incorrect output, expected [0] or [1] but was[${wf:actionData('myfirstshelljob')['value']}]</message>
+    </kill>
+    <end name='end'/>
+</workflow-app>
